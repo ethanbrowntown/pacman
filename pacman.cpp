@@ -96,6 +96,19 @@ class Entity
             return (xLoc - 4) / 8 == (e.xLoc - 4) / 8 && (yLoc - 4) / 8 == (e.yLoc - 4) / 8;
         }
 
+        //sets if ghost is eaten
+        void setEaten(bool b)
+        {
+            eaten = b;
+        }
+
+        //retrieves if ghost is eaten
+        bool getEaten()
+        {
+            return eaten;
+        }
+
+
     private:
         //coordinates and direction of movement
         int xLoc;
@@ -110,6 +123,9 @@ class Entity
 
         //flee mode activated
         bool fleeMode;
+
+        //if ghost has been eaten
+        bool eaten;
 };
 
 class Player : public Entity
@@ -446,6 +462,8 @@ int LTexture::getHeight()
 Entity::Entity()
 {
     mouthOpen = true;
+    fleeMode = false;
+    eaten = false;
 }
 
 Entity::~Entity()
@@ -472,6 +490,13 @@ void Entity::update(Board b)
     //distances are offset by starting location
     int xTile = (getXLoc() - 4) / 8;
     int yTile = (getYLoc() - 4) / 8;
+
+    //removes eaten status at start tile
+    if (xTile == 13 && yTile == 11)
+    {
+        eaten = false;
+    }
+
     for(int i = 0; i < 2; i++)
     {
         switch(getOrientation())
@@ -648,58 +673,92 @@ void Blinky::decideTurn(Board b, Player p)
     Tile currentTile = b.getTile(yTile, xTile);
     int goalY;
     int goalX;
-    if (!getScatter())
+    if (getEaten())
     {
-        goalY = (p.getYLoc() - 4) / 8;
-        goalX = (p.getXLoc() - 4) / 8;
+        goalY = 11;
+        goalX = 13;
     }
-    else
+    else if (getScatter() && !getFlee())
     {
         goalY = 0;
         goalX = 27;
     }
+    else if (!getScatter() && !getEaten())
+    {
+        goalY = (p.getYLoc() - 4) / 8;
+        goalX = (p.getXLoc() - 4) / 8;
+    }
 
     //blinky will always try to go towards the player but can only turn in 90 degree angles and only thinks one space ahead
     int best = DEFAULT;
-    int hamilton = abs(goalY - yTile) + abs(goalX - xTile) + 20;
+    int worst = DEFAULT;
+    int bestHamilton = abs(goalY - yTile) + abs(goalX - xTile) + 5;
+    int worstHamilton = bestHamilton - 10;
     int hypotheticalDistance;
     if (currentTile.canGoDown() && getOrientation() != UP)
     {
         hypotheticalDistance = abs(goalY - (yTile + 1)) + abs(goalX - xTile);
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = DOWN;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = DOWN;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoUp() && getOrientation() != DOWN)
     {
         hypotheticalDistance = abs(goalY - (yTile - 1)) + abs(goalX - xTile);
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = UP;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = UP;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoLeft() && getOrientation() != RIGHT)
     {
         hypotheticalDistance = abs(goalY - yTile) + abs(goalX - (xTile - 1));
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = LEFT;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = LEFT;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoRight() && getOrientation() != LEFT)
     {
         hypotheticalDistance = abs(goalY - yTile) + abs(goalX - (xTile + 1));
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = RIGHT;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = RIGHT;
+            worstHamilton = hypotheticalDistance;
         }
     }
-    setNextTurn(best);
+    if (getFlee() && !getEaten())
+    {
+        setNextTurn(worst);
+    }
+    else
+    {
+        setNextTurn(best);
+    }
 }
 
 void Pinky::decideTurn(Board b, Player p)
@@ -710,7 +769,17 @@ void Pinky::decideTurn(Board b, Player p)
     Tile currentTile = b.getTile(yTile, xTile);
     int goalX;
     int goalY;
-    if (!getScatter())
+    if (getEaten())
+    {
+        goalY = 11;
+        goalX = 13;
+    }
+    else if (getScatter() && !getFlee())
+    {
+        goalY = 0;
+        goalX = 0;
+    }
+    else
     {
         goalY = (p.getYLoc() - 4) / 8;
         goalX = (p.getXLoc() - 4) / 8;
@@ -733,53 +802,77 @@ void Pinky::decideTurn(Board b, Player p)
                 break;
         }
     }
-    else
-    {
-        goalY = 0;
-        goalX = 0;
-    }
 
     //pinky will always try to go towards the goal but can only turn in 90 degree angles and only thinks one space ahead
     int best = DEFAULT;
-    int hamilton = abs(goalY - yTile) + abs(goalX - xTile) + 20;
+    int worst = DEFAULT;
+    int bestHamilton = abs(goalY - yTile) + abs(goalX - xTile) + 5;
+    int worstHamilton = bestHamilton - 10;
     int hypotheticalDistance;
     if (currentTile.canGoDown() && getOrientation() != UP)
     {
         hypotheticalDistance = abs(goalY - (yTile + 1)) + abs(goalX - xTile);
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = DOWN;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = DOWN;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoUp() && getOrientation() != DOWN)
     {
         hypotheticalDistance = abs(goalY - (yTile - 1)) + abs(goalX - xTile);
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = UP;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = UP;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoLeft() && getOrientation() != RIGHT)
     {
         hypotheticalDistance = abs(goalY - yTile) + abs(goalX - (xTile - 1));
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = LEFT;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = LEFT;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoRight() && getOrientation() != LEFT)
     {
         hypotheticalDistance = abs(goalY - yTile) + abs(goalX - (xTile + 1));
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = RIGHT;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = RIGHT;
+            worstHamilton = hypotheticalDistance;
         }
     }
-    setNextTurn(best);
+    if (getFlee() && !getEaten())
+    {
+        setNextTurn(worst);
+    }
+    else
+    {
+        setNextTurn(best);
+    }
 }
 
 void Inky::decideTurn(Board b, Player p, Blinky blink)
@@ -790,7 +883,17 @@ void Inky::decideTurn(Board b, Player p, Blinky blink)
     Tile currentTile = b.getTile(yTile, xTile);
     int goalX;
     int goalY;
-    if (!getScatter())
+    if (getEaten())
+    {
+        goalY = 11;
+        goalX = 13;
+    }
+    else if (getScatter() && !getFlee())
+    {
+        goalX = 0;
+        goalY = 30;
+    }
+    else
     {
         goalY = (p.getYLoc() - 4) / 8;
         goalX = (p.getXLoc() - 4) / 8;
@@ -818,53 +921,77 @@ void Inky::decideTurn(Board b, Player p, Blinky blink)
         goalX += (goalX - blinkyX);
         goalY += (goalY - blinkyY);
     }
-    else
-    {
-        goalX = 0;
-        goalY = 30;
-    }
 
     //inky will always try to go towards the goal but can only turn in 90 degree angles and only thinks one space ahead
     int best = DEFAULT;
-    int hamilton = abs(goalY - yTile) + abs(goalX - xTile) + 20;
+    int worst = DEFAULT;
+    int bestHamilton = abs(goalY - yTile) + abs(goalX - xTile) + 5;
+    int worstHamilton = bestHamilton - 10;
     int hypotheticalDistance;
     if (currentTile.canGoDown() && getOrientation() != UP)
     {
         hypotheticalDistance = abs(goalY - (yTile + 1)) + abs(goalX - xTile);
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = DOWN;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = DOWN;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoUp() && getOrientation() != DOWN)
     {
         hypotheticalDistance = abs(goalY - (yTile - 1)) + abs(goalX - xTile);
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = UP;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = UP;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoLeft() && getOrientation() != RIGHT)
     {
         hypotheticalDistance = abs(goalY - yTile) + abs(goalX - (xTile - 1));
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = LEFT;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = LEFT;
+            worstHamilton = hypotheticalDistance;
         }
     }
     if (currentTile.canGoRight() && getOrientation() != LEFT)
     {
         hypotheticalDistance = abs(goalY - yTile) + abs(goalX - (xTile + 1));
-        if (hypotheticalDistance < hamilton)
+        if (hypotheticalDistance < bestHamilton)
         {
             best = RIGHT;
-            hamilton = hypotheticalDistance;
+            bestHamilton = hypotheticalDistance;
+        }
+        if (hypotheticalDistance > worstHamilton)
+        {
+            worst = RIGHT;
+            worstHamilton = hypotheticalDistance;
         }
     }
-    setNextTurn(best);
+    if (getFlee() && !getEaten())
+    {
+        setNextTurn(worst);
+    }
+    else
+    {
+        setNextTurn(best);
+    }
 }
 
 Board::Board()
@@ -1481,33 +1608,74 @@ int main( int argc, char* args[] )
                     gSpriteSheetTexture.render(player.getXLoc() - 10, player.getYLoc() - 8, &gPlayer[player.currentSprite()]);
                 }
 
-				//render ghosts
-				if (blinky.getFlee())
+                //render ghosts
+                if (blinky.getEaten())
+                {
+                    int c = blinky.getOrientation() + 4;
+                    gSpriteSheetTexture.render(blinky.getXLoc() - 10, blinky.getYLoc() - 8, &gMiscGhost[c]);
+                }
+                else if (blinky.getFlee())
                 {
                     if (frame > fleeFrame + 420 && (frame / 20) % 2 == 0) //ghosts will blink near end of flee mode
                     {
                         gSpriteSheetTexture.render(blinky.getXLoc() - 10, blinky.getYLoc() - 8, &gMiscGhost[blinky.getMouthOpen() + 2]);
-                        gSpriteSheetTexture.render(pinky.getXLoc() - 10, pinky.getYLoc() - 8, &gMiscGhost[pinky.getMouthOpen() + 2]);
-                        gSpriteSheetTexture.render(inky.getXLoc() - 10, inky.getYLoc() - 8, &gMiscGhost[inky.getMouthOpen() + 2]);
                     }
                     else
                     {
                         gSpriteSheetTexture.render(blinky.getXLoc() - 10, blinky.getYLoc() - 8, &gMiscGhost[blinky.getMouthOpen()]);
-                        gSpriteSheetTexture.render(pinky.getXLoc() - 10, pinky.getYLoc() - 8, &gMiscGhost[pinky.getMouthOpen()]);
-                        gSpriteSheetTexture.render(inky.getXLoc() - 10, inky.getYLoc() - 8, &gMiscGhost[inky.getMouthOpen()]);
                     }
                 }
                 else
                 {
                     gSpriteSheetTexture.render(blinky.getXLoc() - 10, blinky.getYLoc() - 8, &gBlinky[blinky.currentSprite()]);
+                }
+                if (pinky.getEaten())
+                {
+                    int c = pinky.getOrientation() + 4;
+                    gSpriteSheetTexture.render(pinky.getXLoc() - 10, pinky.getYLoc() - 8, &gMiscGhost[c]);
+                }
+                else if (pinky.getFlee())
+                {
+                    if (frame > fleeFrame + 420 && (frame / 20) % 2 == 0) //ghosts will blink near end of flee mode
+                    {
+                        gSpriteSheetTexture.render(pinky.getXLoc() - 10, pinky.getYLoc() - 8, &gMiscGhost[pinky.getMouthOpen() + 2]);
+                    }
+                    else
+                    {
+                        gSpriteSheetTexture.render(pinky.getXLoc() - 10, pinky.getYLoc() - 8, &gMiscGhost[pinky.getMouthOpen()]);
+                    }
+                }
+                else
+                {
                     gSpriteSheetTexture.render(pinky.getXLoc() - 10, pinky.getYLoc() - 8, &gPinky[pinky.currentSprite()]);
+                }
+                if (inky.getEaten())
+                {
+                    int c = inky.getOrientation() + 4;
+                    gSpriteSheetTexture.render(inky.getXLoc() - 10, inky.getYLoc() - 8, &gMiscGhost[c]);
+                }
+                else if (inky.getFlee())
+                {
+                    if (frame > fleeFrame + 420 && (frame / 20) % 2 == 0) //ghosts will blink near end of flee mode
+                    {
+                        gSpriteSheetTexture.render(inky.getXLoc() - 10, inky.getYLoc() - 8, &gMiscGhost[inky.getMouthOpen() + 2]);
+                    }
+                    else
+                    {
+                        gSpriteSheetTexture.render(inky.getXLoc() - 10, inky.getYLoc() - 8, &gMiscGhost[inky.getMouthOpen()]);
+                    }
+                }
+                else
+                {
                     gSpriteSheetTexture.render(inky.getXLoc() - 10, inky.getYLoc() - 8, &gInky[inky.currentSprite()]);
                 }
+
+
 
 				//Update board
 				board.updateBoard(player);
 
-                //check if power ball is eaten
+                //check if energizer is eaten
                 int xTile = (player.getXLoc() - 4) / 8;
                 int yTile = (player.getYLoc() - 4) / 8;
                 if (yTile == 3 && (xTile == 1 || xTile == 26))
@@ -1525,6 +1693,7 @@ int main( int argc, char* args[] )
                     fleeFrame = frame;
                 }
 
+                //energizer expires after 10 seconds
                 if (fleeFrame != 0 && frame == fleeFrame + 600)
                 {
                     blinky.setFlee(false);
@@ -1550,6 +1719,23 @@ int main( int argc, char* args[] )
                         player.update(board);
                     }
 				}
+
+				//checks if player has eaten ghosts
+				if (!player.getDeathState())
+                {
+                    if (blinky.getFlee() && player.sharingTile(blinky))
+                    {
+                        blinky.setEaten(true);
+                    }
+                    if (pinky.getFlee() && player.sharingTile(pinky))
+                    {
+                        pinky.setEaten(true);
+                    }
+                    if (inky.getFlee() && player.sharingTile(inky))
+                    {
+                        inky.setEaten(true);
+                    }
+                }
 
                 //update ghosts
 				if (frame % 4 == 0 && !player.getDeathState())

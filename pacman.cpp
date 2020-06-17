@@ -1704,7 +1704,7 @@ int main( int argc, char* args[] )
 				if (frame % 3 == 0)
                 {
                     //checks if player is dead/dying
-                    if (player.getDeathState() || ((player.sharingTile(blinky) || player.sharingTile(pinky) || player.sharingTile(inky)) && !blinky.getFlee()))
+                    if (player.getDeathState() || ((player.sharingTile(blinky) && !blinky.getEaten()) || (player.sharingTile(pinky) && !pinky.getEaten()) || (player.sharingTile(inky) && !inky.getEaten()) && !blinky.getFlee()))
                     {
                         player.kill();
                         //ends game once death animation is over
